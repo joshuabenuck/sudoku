@@ -7,17 +7,21 @@ use piston::event_loop::{EventLoop, EventSettings, Events};
 use piston::input::GenericEvent;
 use piston::input::RenderEvent;
 use piston::window::WindowSettings;
+use rand::{rngs::ThreadRng, thread_rng, Rng};
+use std::collections::HashSet;
 
 const SIZE: usize = 9;
 
 pub struct Gameboard {
     pub cells: [[u8; SIZE]; SIZE],
+    rng: ThreadRng,
 }
 
 impl Gameboard {
     pub fn new() -> Gameboard {
         Gameboard {
             cells: [[0; SIZE]; SIZE],
+            rng: thread_rng(),
         }
     }
 
@@ -40,6 +44,85 @@ impl Gameboard {
     /// Set cell value.
     pub fn set(&mut self, ind: [usize; 2], val: u8) {
         self.cells[ind[1]][ind[0]] = val;
+    }
+
+    pub fn leftright(&self, x: usize, y: usize) -> HashSet<u8> {
+        let mut leftright = HashSet::new();
+        for i in 0..x {
+            leftright.insert(self.cells[y][i]);
+        }
+        for i in (x + 1)..9 {
+            leftright.insert(self.cells[y][i]);
+        }
+        leftright
+    }
+
+    pub fn updown(&self, x: usize, y: usize) -> HashSet<u8> {
+        let mut updown = HashSet::new();
+        for j in 0..y {
+            updown.insert(self.cells[j][x]);
+        }
+        for j in (y + 1)..9 {
+            updown.insert(self.cells[j][x]);
+        }
+        updown
+    }
+
+    pub fn inbox(&self, x: usize, y: usize) -> HashSet<u8> {
+        let mut inbox = HashSet::new();
+        let grid_x = x / 3;
+        let grid_y = y / 3;
+        for j in grid_y * 3..(grid_y + 1) * 3 {
+            for i in grid_x * 3..(grid_x + 1) * 3 {
+                inbox.insert(self.cells[j][i]);
+            }
+        }
+        inbox
+    }
+
+    fn fullset(&self) -> HashSet<u8> {
+        let mut fullset = HashSet::new();
+        fullset.insert(1);
+        fullset.insert(2);
+        fullset.insert(3);
+        fullset.insert(4);
+        fullset.insert(5);
+        fullset.insert(6);
+        fullset.insert(7);
+        fullset.insert(8);
+        fullset.insert(9);
+        fullset
+    }
+
+    pub fn populate(&mut self) {
+        let mut seed = Vec::new();
+        let set = self.fullset();
+        let mut possibilities: Vec<u8> = set.into_iter().collect();
+        for _ in 0..9 {
+            let index = self.rng.gen_range(0, possibilities.len());
+            seed.push(possibilities.remove(index));
+        }
+        // https://gamedev.stackexchange.com/questions/56149/how-can-i-generate-sudoku-puzzles
+        let indexes = vec![
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+            vec![3, 4, 5, 6, 7, 8, 0, 1, 2], // shift 3
+            vec![6, 7, 8, 0, 1, 2, 3, 4, 5], // shift 3
+            vec![7, 8, 0, 1, 2, 3, 4, 5, 6], // shift 1
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 0], // shift 3
+            vec![4, 5, 6, 7, 8, 0, 1, 2, 3], // shift 3
+            vec![5, 6, 7, 8, 0, 1, 2, 3, 4], // shift 1
+            vec![8, 0, 1, 2, 3, 4, 5, 6, 7], // shift 3
+            vec![2, 3, 4, 5, 6, 7, 8, 0, 1], // shift 3
+        ];
+        for j in 0..9 {
+            for i in 0..9 {
+                self.cells[j][i] = seed[indexes[j][i]];
+            }
+        }
+    }
+
+    pub fn solved(&self) -> bool {
+        false
     }
 }
 
@@ -263,7 +346,8 @@ fn main() {
     let mut window: GlutinWindow = settings.build().expect("Could not create window");
     let mut gl = GlGraphics::new(opengl);
 
-    let gameboard = Gameboard::new();
+    let mut gameboard = Gameboard::new();
+    gameboard.populate();
     let mut gameboard_controller = GameboardController::new(gameboard);
     let gameboard_view_settings = GameboardViewSettings::new();
     let gameboard_view = GameboardView::new(gameboard_view_settings);
