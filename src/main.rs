@@ -14,6 +14,7 @@ const SIZE: usize = 9;
 
 pub struct Gameboard {
     pub cells: [[u8; SIZE]; SIZE],
+    solved: bool,
     rng: ThreadRng,
 }
 
@@ -21,6 +22,7 @@ impl Gameboard {
     pub fn new() -> Gameboard {
         Gameboard {
             cells: [[0; SIZE]; SIZE],
+            solved: false,
             rng: thread_rng(),
         }
     }
@@ -44,6 +46,7 @@ impl Gameboard {
     /// Set cell value.
     pub fn set(&mut self, ind: [usize; 2], val: u8) {
         self.cells[ind[1]][ind[0]] = val;
+        self.solved = self.solved();
     }
 
     pub fn leftright(&self, x: usize, y: usize) -> HashSet<u8> {
@@ -51,7 +54,7 @@ impl Gameboard {
         for i in 0..x {
             leftright.insert(self.cells[y][i]);
         }
-        for i in (x + 1)..9 {
+        for i in x..9 {
             leftright.insert(self.cells[y][i]);
         }
         leftright
@@ -62,7 +65,7 @@ impl Gameboard {
         for j in 0..y {
             updown.insert(self.cells[j][x]);
         }
-        for j in (y + 1)..9 {
+        for j in y..9 {
             updown.insert(self.cells[j][x]);
         }
         updown
@@ -81,17 +84,7 @@ impl Gameboard {
     }
 
     fn fullset(&self) -> HashSet<u8> {
-        let mut fullset = HashSet::new();
-        fullset.insert(1);
-        fullset.insert(2);
-        fullset.insert(3);
-        fullset.insert(4);
-        fullset.insert(5);
-        fullset.insert(6);
-        fullset.insert(7);
-        fullset.insert(8);
-        fullset.insert(9);
-        fullset
+        (0..9).collect()
     }
 
     pub fn populate(&mut self) {
@@ -100,7 +93,7 @@ impl Gameboard {
         let mut possibilities: Vec<u8> = set.into_iter().collect();
         for _ in 0..9 {
             let index = self.rng.gen_range(0, possibilities.len());
-            seed.push(possibilities.remove(index));
+            seed.push(possibilities.remove(index) + 1);
         }
         // https://gamedev.stackexchange.com/questions/56149/how-can-i-generate-sudoku-puzzles
         let indexes = vec![
@@ -122,7 +115,21 @@ impl Gameboard {
     }
 
     pub fn solved(&self) -> bool {
-        false
+        let solution = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9;
+        for j in 0..9 {
+            for i in 0..9 {
+                if self.updown(i, j).iter().map(|v| *v as u64).sum::<u64>() != solution {
+                    return false;
+                }
+                if self.leftright(i, j).iter().map(|v| *v as u64).sum::<u64>() != solution {
+                    return false;
+                }
+                if self.inbox(i, j).iter().map(|v| *v as u64).sum::<u64>() != solution {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }
 
@@ -245,20 +252,28 @@ impl GameboardView {
         Rectangle::new(settings.background_color).draw(board_rect, &c.draw_state, c.transform, g);
 
         if let Some(ind) = controller.selected_cell {
-            let cell_size = settings.size / 9.0;
-            let pos = [ind[0] as f64 * cell_size, ind[1] as f64 * cell_size];
-            let cell_rect = [
-                settings.position[0] + pos[0],
-                settings.position[1] + pos[1],
-                cell_size,
-                cell_size,
-            ];
-            Rectangle::new(settings.selected_cell_background_color).draw(
-                cell_rect,
-                &c.draw_state,
-                c.transform,
-                g,
-            );
+            let target_value = controller.gameboard.char(ind);
+            for j in 0..9 {
+                for i in 0..9 {
+                    if controller.gameboard.char([i, j]) != target_value {
+                        continue;
+                    }
+                    let cell_size = settings.size / 9.0;
+                    let pos = [i as f64 * cell_size, j as f64 * cell_size];
+                    let cell_rect = [
+                        settings.position[0] + pos[0],
+                        settings.position[1] + pos[1],
+                        cell_size,
+                        cell_size,
+                    ];
+                    Rectangle::new(settings.selected_cell_background_color).draw(
+                        cell_rect,
+                        &c.draw_state,
+                        c.transform,
+                        g,
+                    );
+                }
+            }
         }
 
         // Draw characters.
@@ -329,6 +344,22 @@ impl GameboardView {
             c.transform,
             g,
         );
+        if let Some(ind) = controller.selected_cell {
+            let cell_size = settings.size / 9.0;
+            let pos = [ind[0] as f64 * cell_size, ind[1] as f64 * cell_size];
+            let cell_rect = [
+                settings.position[0] + pos[0],
+                settings.position[1] + pos[1],
+                cell_size,
+                cell_size,
+            ];
+            Rectangle::new_border([1.0, 0.0, 0.0, 1.0], 1.0).draw(
+                cell_rect,
+                &c.draw_state,
+                c.transform,
+                g,
+            )
+        }
     }
 }
 
