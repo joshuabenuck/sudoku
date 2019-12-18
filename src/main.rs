@@ -381,7 +381,7 @@ fn main() {
     gameboard.populate();
     let mut gameboard_controller = GameboardController::new(gameboard);
     let gameboard_view_settings = GameboardViewSettings::new();
-    let gameboard_view = GameboardView::new(gameboard_view_settings);
+    let mut gameboard_view = GameboardView::new(gameboard_view_settings);
 
     let texture_settings = TextureSettings::new().filter(Filter::Nearest);
     let ref mut glyphs = GlyphCache::new("assets/FiraSans-Regular.ttf", (), texture_settings)
@@ -396,6 +396,11 @@ fn main() {
             gl.draw(args.viewport(), |c, g| {
                 use graphics::clear;
                 clear([1.0; 4], g);
+                let window_size = args.window_size;
+                gameboard_view.settings.position[0] =
+                    (window_size[0] - gameboard_view.settings.size) / 2.0;
+                gameboard_view.settings.position[1] =
+                    (window_size[1] - gameboard_view.settings.size) / 2.0;
                 gameboard_view.draw(&gameboard_controller, glyphs, &c, g);
             });
         }
